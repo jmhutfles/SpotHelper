@@ -11,7 +11,7 @@ IPLong = -75.03605104306934
 RawWinds = get_winds_aloft_table(IPLat, IPLong)
 north_interp, east_interp = get_wind_component_interpolators(RawWinds)
 
-# Simulate freefall
+# First simulation: exit directly over target
 alts, norths, easts, times = simulate_freefall(
     alt0_ft=13000,
     mass_kg=90,
@@ -21,35 +21,33 @@ alts, norths, easts, times = simulate_freefall(
     dt=0.1
 )
 
-# Plot North position vs Altitude
-plt.figure(figsize=(8, 6))
-plt.plot(norths, alts)
-plt.xlabel('North Drift (meters)')
-plt.ylabel('Altitude (ft)')
-plt.title('Skydiver North Drift vs Altitude')
-plt.gca().invert_yaxis()
-plt.grid(True)
-plt.show()
+# Calculate required exit offset to land at IPLat/IPLong
+final_north = norths[-1]
+final_east = easts[-1]
+required_north_offset = -final_north
+required_east_offset = -final_east
 
-# Plot East position vs Altitude
-plt.figure(figsize=(8, 6))
-plt.plot(easts, alts)
-plt.xlabel('East Drift (meters)')
-plt.ylabel('Altitude (ft)')
-plt.title('Skydiver East Drift vs Altitude')
-plt.gca().invert_yaxis()
-plt.grid(True)
-plt.show()
+def meters_offset_to_latlon(north_offset, east_offset, lat0, lon0):
+    dlat = north_offset / 111320
+    dlon = east_offset / (111320 * np.cos(np.radians(lat0)))
+    return lat0 + dlat, lon0 + dlon
 
-# Plot 2D trajectory (North vs East)
-plt.figure(figsize=(8, 6))
-plt.plot(easts, norths)
-plt.xlabel('East Drift (meters)')
-plt.ylabel('North Drift (meters)')
-plt.title('Skydiver Horizontal Trajectory')
-plt.grid(True)
-plt.axis('equal')
-plt.show()
+exit_lat, exit_lon = meters_offset_to_latlon(required_north_offset, required_east_offset, IPLat, IPLong)
+print(f"Exit at: {exit_lat}, {exit_lon}")
+
+# Rerun simulation from the new exit point
+alts, norths, easts, times = simulate_freefall(
+    alt0_ft=13000,
+    mass_kg=90,
+    CdA=0.505,
+    north_interp=north_interp,
+    east_interp=east_interp,
+    dt=0.1,
+    north0=required_north_offset,
+    east0=required_east_offset
+)
+
+
 
 # Get satellite image and bounding box
 img, (lat_min, lat_max, lon_min, lon_max) = get_sat_image(IPLat, IPLong, zoom=13, size=400)
@@ -62,48 +60,25 @@ if img is not None:
     plt.figure(figsize=(8, 8))
     plt.imshow(img, extent=[lon_min, lon_max, lat_min, lat_max], origin='upper')
     plt.plot(traj_lon, traj_lat, color='red', linewidth=2, label='Trajectory')
+    plt.scatter([exit_lon], [exit_lat], color='cyan', marker='o', label='Exit Point')
     plt.scatter([IPLong], [IPLat], color='yellow', marker='x', label='Dropzone')
     plt.xlabel('Longitude')
     plt.ylabel('Latitude')
-    plt.title('Skydiver Trajectory over Yandex Satellite Image')
+    plt.title('Skydiver Trajectory over Yandex Satellite Image (Corrected Exit)')
     plt.legend()
     plt.show()
 else:
     print("Satellite image could not be retrieved. Plotting trajectory only.")
     plt.figure(figsize=(8, 8))
     plt.plot(traj_lon, traj_lat, color='red', linewidth=2, label='Trajectory')
+    plt.scatter([exit_lon], [exit_lat], color='cyan', marker='o', label='Exit Point')
     plt.scatter([IPLong], [IPLat], color='yellow', marker='x', label='Dropzone')
     plt.xlabel('Longitude')
     plt.ylabel('Latitude')
-    plt.title('Skydiver Trajectory (No Satellite Image)')
+    plt.title('Skydiver Trajectory (No Satellite Image, Corrected Exit)')
     plt.legend()
     plt.show()
 
-# Plot Altitude vs Time
-plt.figure(figsize=(8, 6))
-plt.plot(times, alts)
-plt.xlabel('Time (s)')
-plt.ylabel('Altitude (ft)')
-plt.title('Skydiver Altitude vs Time')
-plt.gca().invert_yaxis()
-plt.grid(True)
-plt.show()
-
-# Plot North Drift vs Time
-plt.figure(figsize=(8, 6))
-plt.plot(times, norths)
-plt.xlabel('Time (s)')
-plt.ylabel('North Drift (meters)')
-plt.title('Skydiver North Drift vs Time')
-plt.grid(True)
-plt.show()
-
-# Plot East Drift vs Time
-plt.figure(figsize=(8, 6))
-plt.plot(times, easts)
-plt.xlabel('Time (s)')
-plt.ylabel('East Drift (meters)')
-plt.title('Skydiver East Drift vs Time')
-plt.grid(True)
-plt.show()
-
+final_lat, final_lon = traj_lat[-1], traj_lon[-1]
+print(f"Landing at: {final_lat}, {final_lon}")
+print(f"Target:     {IPLat}, {IPLong}")
