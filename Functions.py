@@ -1,6 +1,10 @@
 import requests
 import pandas as pd
 from datetime import datetime, timezone
+import numpy as np
+from scipy.interpolate import interp1d
+from PIL import Image
+from io import BytesIO
 
 def get_winds_aloft_table(latitude, longitude):
     url = (
@@ -62,14 +66,6 @@ def get_winds_aloft_table(latitude, longitude):
     df = pd.DataFrame(winds)
     return df
 
-# Example usage:
-# df = get_winds_aloft_table(40.7128, -74.0060)
-# print(df)
-
-
-import numpy as np
-from scipy.interpolate import interp1d
-
 def get_wind_component_interpolators(wind_df):
     """
     Given a DataFrame with 'Altitude (ft)', 'Wind Speed (m/s)', and 'Wind Direction (deg)',
@@ -80,8 +76,8 @@ def get_wind_component_interpolators(wind_df):
     wind_dirs = wind_df["Wind Direction (deg)"].values
 
     # Calculate components
-    north_winds = wind_speeds * np.cos(np.radians(wind_dirs))
-    east_winds = wind_speeds * np.sin(np.radians(wind_dirs))
+    north_winds = wind_speeds * np.cos(np.radians(wind_dirs)) * -1
+    east_winds = wind_speeds * np.sin(np.radians(wind_dirs)) * -1
 
     # Create interpolation functions
     north_interp = interp1d(altitudes, north_winds, kind='linear', fill_value="extrapolate")
@@ -89,7 +85,113 @@ def get_wind_component_interpolators(wind_df):
 
     return north_interp, east_interp
 
-# Example usage:
-# RawWinds = get_winds_aloft_table(IPLat, IPLong)
-# north_fn, east_fn = get_wind_component_interpolators(RawWinds)
-# print(north_fn(5000), east_fn(5000))
+def get_sat_image(latitude, longitude, zoom=13, size=400):
+    """
+    Downloads a satellite image centered at (latitude, longitude) using Yandex Static Maps.
+    Returns a PIL Image and the bounding box (lat_min, lat_max, lon_min, lon_max).
+    """
+    url = (
+        "https://static-maps.yandex.ru/1.x/"
+        f"?ll={longitude},{latitude}"
+        f"&z={zoom}"
+        f"&l=sat"
+        f"&size={size},{size}"
+    )
+    resp = requests.get(url)
+    if 'image' not in resp.headers.get('Content-Type', ''):
+        print("Yandex did not return an image. Response headers:", resp.headers)
+        print("Response content (truncated):", resp.content[:200])
+        return None, (None, None, None, None)
+    img = Image.open(BytesIO(resp.content))
+
+    meters_per_pixel = 156543.03392 * np.cos(np.radians(latitude)) / (2 ** zoom)
+    half_side_m = (size / 2) * meters_per_pixel
+    dlat = (half_side_m / 111320)
+    dlon = half_side_m / (40075000 * np.cos(np.radians(latitude)) / 360)
+    lat_min = latitude - dlat
+    lat_max = latitude + dlat
+    lon_min = longitude - dlon
+    lon_max = longitude + dlon
+
+    return img, (lat_min, lat_max, lon_min, lon_max)
+
+
+def meters_to_latlon(north, east, lat0, lon0):
+    """
+    Converts north/east meters to latitude/longitude offsets from (lat0, lon0).
+    Returns arrays of latitudes and longitudes.
+    """
+    dlat = north / 111320  # meters per degree latitude
+    dlon = east / (40075000 * np.cos(np.radians(lat0)) / 360)
+    return lat0 + dlat, lon0 + dlon
+
+def air_pressure(alt_m):
+    """
+    Returns air pressure in Pascals at altitude alt_m (meters) using the barometric formula.
+    """
+    P0 = 101325      # Sea level standard atmospheric pressure, Pa
+    L = 0.0065       # Temperature lapse rate, K/m
+    T0 = 288.15      # Sea level standard temperature, K
+    g = 9.80665      # Gravity, m/s^2
+    M = 0.0289644    # Molar mass of dry air, kg/mol
+    R = 8.3144598    # Universal gas constant, J/(mol·K)
+    return P0 * (1 - L * alt_m / T0) ** (g * M / (R * L))
+
+def simulate_freefall(
+    alt0_ft,
+    mass_kg,
+    CdA,
+    north_interp,
+    east_interp,
+    dt=0.1,
+    v_vert0=0.0,
+    north0=0.0,
+    east0=0.0
+):
+    """
+    Simulate a skydiver's freefall with altitude-dependent air pressure/density and wind drift.
+    Returns arrays: alts_ft, norths_m, easts_m, times_s
+    """
+    alt = alt0_ft * 0.3048  # initial altitude in meters
+    v_vert = v_vert0         # initial vertical velocity (down, m/s)
+    north = north0           # initial north position (meters)
+    east = east0             # initial east position (meters)
+    g = 9.81                 # gravity (m/s^2)
+
+    alts = []
+    norths = []
+    easts = []
+    times = []
+
+    t = 0.0
+    while alt > 0:
+        alt_ft = alt / 0.3048
+        wind_north = north_interp(alt_ft)
+        wind_east = east_interp(alt_ft)
+
+        # Air pressure and temperature at this altitude
+        pressure = air_pressure(alt)
+        temp = 288.15 - 0.0065 * alt
+
+        # Air density
+        R_specific = 287.058
+        rho = pressure / (R_specific * temp)
+
+        # Drag force
+        drag = 0.5 * rho * v_vert**2 * CdA * np.sign(v_vert)
+        F_net = mass_kg * g - drag
+        a = F_net / mass_kg
+
+        v_vert += a * dt
+        alt -= v_vert * dt
+
+        north += wind_north * dt
+        east += wind_east * dt
+
+        alts.append(alt / 0.3048)
+        norths.append(north)
+        easts.append(east)
+        times.append(t)
+        t += dt
+
+    return np.array(alts), np.array(norths), np.array(easts), np.array(times)

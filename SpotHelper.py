@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from Functions import get_winds_aloft_table, get_wind_component_interpolators
+from Functions import get_winds_aloft_table, get_wind_component_interpolators, get_sat_image, meters_to_latlon, simulate_freefall
 
 # Lat Long for Skydive Crosskeys
 IPLat = 39.70729978214128
@@ -11,64 +11,15 @@ IPLong = -75.03605104306934
 RawWinds = get_winds_aloft_table(IPLat, IPLong)
 north_interp, east_interp = get_wind_component_interpolators(RawWinds)
 
-# Generate altitude range from 0 to 13,000 ft
-alt_grid = np.linspace(0, 13000, 200)
-
-# Interpolated wind components
-north_wind_vals = north_interp(alt_grid)
-east_wind_vals = east_interp(alt_grid)
-
-# Constants
-CdA = 0.505  # m^2
-g = 9.81     # m/s^2
-m = 90       # kg
-rho = 1.225  # kg/m^3 (air density at sea level)
-dt = 0.1     # time step in seconds
-
-# Initial conditions
-alt = 13000 * 0.3048  # convert ft to meters
-north = 0.0           # meters
-east = 0.0            # meters
-v_vert = 0.0          # vertical velocity (down, m/s)
-
-alts = []
-norths = []
-easts = []
-times = []
-
-t = 0.0
-while alt > 0:
-    # Get wind at current altitude (convert meters to feet for interpolation)
-    alt_ft = alt / 0.3048
-    wind_north = north_interp(alt_ft)  # m/s
-    wind_east = east_interp(alt_ft)    # m/s
-
-    # Drag force
-    drag = 0.5 * rho * v_vert**2 * CdA * np.sign(v_vert)
-    # Net force (down is positive)
-    F_net = m * g - drag
-    # Acceleration
-    a = F_net / m
-    # Update vertical velocity and altitude
-    v_vert += a * dt
-    alt -= v_vert * dt
-
-    # Update horizontal position (wind drift)
-    north += wind_north * dt
-    east += wind_east * dt
-
-    # Store for plotting
-    alts.append(alt / 0.3048)  # store in feet
-    norths.append(north)
-    easts.append(east)
-    times.append(t)
-    t += dt
-
-# Convert lists to arrays for plotting
-alts = np.array(alts)
-norths = np.array(norths)
-easts = np.array(easts)
-times = np.array(times)
+# Simulate freefall
+alts, norths, easts, times = simulate_freefall(
+    alt0_ft=13000,
+    mass_kg=90,
+    CdA=0.505,
+    north_interp=north_interp,
+    east_interp=east_interp,
+    dt=0.1
+)
 
 # Plot North position vs Altitude
 plt.figure(figsize=(8, 6))
@@ -80,7 +31,7 @@ plt.gca().invert_yaxis()
 plt.grid(True)
 plt.show()
 
-# Optional: Plot East position vs Altitude
+# Plot East position vs Altitude
 plt.figure(figsize=(8, 6))
 plt.plot(easts, alts)
 plt.xlabel('East Drift (meters)')
@@ -90,7 +41,7 @@ plt.gca().invert_yaxis()
 plt.grid(True)
 plt.show()
 
-# Optional: Plot 2D trajectory (North vs East)
+# Plot 2D trajectory (North vs East)
 plt.figure(figsize=(8, 6))
 plt.plot(easts, norths)
 plt.xlabel('East Drift (meters)')
@@ -98,5 +49,61 @@ plt.ylabel('North Drift (meters)')
 plt.title('Skydiver Horizontal Trajectory')
 plt.grid(True)
 plt.axis('equal')
+plt.show()
+
+# Get satellite image and bounding box
+img, (lat_min, lat_max, lon_min, lon_max) = get_sat_image(IPLat, IPLong, zoom=13, size=400)
+
+# Convert trajectory to lat/lon
+traj_lat, traj_lon = meters_to_latlon(norths, easts, IPLat, IPLong)
+
+# Plot trajectory over satellite image
+if img is not None:
+    plt.figure(figsize=(8, 8))
+    plt.imshow(img, extent=[lon_min, lon_max, lat_min, lat_max], origin='upper')
+    plt.plot(traj_lon, traj_lat, color='red', linewidth=2, label='Trajectory')
+    plt.scatter([IPLong], [IPLat], color='yellow', marker='x', label='Dropzone')
+    plt.xlabel('Longitude')
+    plt.ylabel('Latitude')
+    plt.title('Skydiver Trajectory over Yandex Satellite Image')
+    plt.legend()
+    plt.show()
+else:
+    print("Satellite image could not be retrieved. Plotting trajectory only.")
+    plt.figure(figsize=(8, 8))
+    plt.plot(traj_lon, traj_lat, color='red', linewidth=2, label='Trajectory')
+    plt.scatter([IPLong], [IPLat], color='yellow', marker='x', label='Dropzone')
+    plt.xlabel('Longitude')
+    plt.ylabel('Latitude')
+    plt.title('Skydiver Trajectory (No Satellite Image)')
+    plt.legend()
+    plt.show()
+
+# Plot Altitude vs Time
+plt.figure(figsize=(8, 6))
+plt.plot(times, alts)
+plt.xlabel('Time (s)')
+plt.ylabel('Altitude (ft)')
+plt.title('Skydiver Altitude vs Time')
+plt.gca().invert_yaxis()
+plt.grid(True)
+plt.show()
+
+# Plot North Drift vs Time
+plt.figure(figsize=(8, 6))
+plt.plot(times, norths)
+plt.xlabel('Time (s)')
+plt.ylabel('North Drift (meters)')
+plt.title('Skydiver North Drift vs Time')
+plt.grid(True)
+plt.show()
+
+# Plot East Drift vs Time
+plt.figure(figsize=(8, 6))
+plt.plot(times, easts)
+plt.xlabel('Time (s)')
+plt.ylabel('East Drift (meters)')
+plt.title('Skydiver East Drift vs Time')
+plt.grid(True)
 plt.show()
 
