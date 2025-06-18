@@ -3,9 +3,20 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from Functions import get_winds_aloft_table, get_wind_component_interpolators, get_sat_image, meters_to_latlon, simulate_freefall_and_canopy
 
-# Lat Long for Skydive Crosskeys
+# -------------------- INITIAL CONDITIONS & CONSTANTS --------------------
+# Location (Dropzone)
 IPLat = 39.70729978214128
 IPLong = -75.03605104306934
+
+# Skydiver/Simulation parameters
+EXIT_ALTITUDE_FT = 13000      # Exit altitude (ft)
+DEPLOY_ALTITUDE_FT = 1000     # Canopy deployment altitude (ft)
+MASS_KG = 90                  # Skydiver mass (kg)
+CDA = 0.505                   # Drag area (m^2)
+CANOPY_V_VERT_FPS = 20        # Canopy vertical descent rate (ft/s)
+DT = 0.1                      # Time step (s)
+
+# -----------------------------------------------------------------------
 
 # Pull Winds
 RawWinds = get_winds_aloft_table(IPLat, IPLong)
@@ -13,14 +24,14 @@ north_interp, east_interp = get_wind_component_interpolators(RawWinds)
 
 # First simulation: exit directly over target
 alts, norths, easts, times, phases = simulate_freefall_and_canopy(
-    alt0_ft=13000,
-    mass_kg=90,
-    CdA=0.505,
+    alt0_ft=EXIT_ALTITUDE_FT,
+    mass_kg=MASS_KG,
+    CdA=CDA,
     north_interp=north_interp,
     east_interp=east_interp,
-    deploy_alt_ft=3000,
-    canopy_v_vert_fps=14,
-    dt=0.1
+    deploy_alt_ft=DEPLOY_ALTITUDE_FT,
+    canopy_v_vert_fps=CANOPY_V_VERT_FPS,
+    dt=DT
 )
 
 # Calculate required exit offset to land at IPLat/IPLong
@@ -39,14 +50,14 @@ print(f"Exit at: {exit_lat}, {exit_lon}")
 
 # Rerun simulation from the new exit point
 alts, norths, easts, times, phases = simulate_freefall_and_canopy(
-    alt0_ft=13000,
-    mass_kg=90,
-    CdA=0.505,
+    alt0_ft=EXIT_ALTITUDE_FT,
+    mass_kg=MASS_KG,
+    CdA=CDA,
     north_interp=north_interp,
     east_interp=east_interp,
-    deploy_alt_ft=3000,
-    canopy_v_vert_fps=14,
-    dt=0.1,
+    deploy_alt_ft=DEPLOY_ALTITUDE_FT,
+    canopy_v_vert_fps=CANOPY_V_VERT_FPS,
+    dt=DT,
     north0=required_north_offset,
     east0=required_east_offset
 )
