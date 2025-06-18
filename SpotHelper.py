@@ -125,4 +125,3 @@ else:
 
 final_lat, final_lon = traj_lat[-1], traj_lon[-1]
 print(f"Landing at: {final_lat}, {final_lon}")
-print(f"Target:     {IPLat}, {IPLong}")
