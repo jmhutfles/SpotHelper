@@ -20,10 +20,12 @@ def get_winds_aloft_table(latitude, longitude):
         "wind_speed_500hPa,wind_direction_500hPa,"
         "wind_speed_400hPa,wind_direction_400hPa,"
         "wind_speed_300hPa,wind_direction_300hPa"
+        "&windspeed_unit=ms"
     )
 
     response = requests.get(url)
     data = response.json()
+    print("Raw Open-Meteo response:", data)
 
     level_to_altitude = {
         "10m": 33,
