@@ -195,3 +195,74 @@ def simulate_freefall(
         t += dt
 
     return np.array(alts), np.array(norths), np.array(easts), np.array(times)
+
+def simulate_freefall_and_canopy(
+    alt0_ft,
+    mass_kg,
+    CdA,
+    north_interp,
+    east_interp,
+    deploy_alt_ft=3000,
+    canopy_v_vert_fps=14,
+    dt=0.1,
+    v_vert0=0.0,
+    north0=0.0,
+    east0=0.0
+):
+    """
+    Simulate freefall to deploy_alt_ft, then non-gliding canopy descent at canopy_v_vert_fps.
+    Returns arrays: alts_ft, norths_m, easts_m, times_s, phases (0=freefall, 1=canopy)
+    """
+    alt = alt0_ft * 0.3048
+    deploy_alt_m = deploy_alt_ft * 0.3048
+    v_vert = v_vert0
+    north = north0
+    east = east0
+    g = 9.81
+
+    canopy_v_vert = canopy_v_vert_fps * 0.3048
+
+    alts = []
+    norths = []
+    easts = []
+    times = []
+    phases = []
+
+    t = 0.0
+    phase = 0  # 0 = freefall, 1 = canopy
+
+    while alt > 0:
+        alt_ft = alt / 0.3048
+        wind_north = north_interp(alt_ft)
+        wind_east = east_interp(alt_ft)
+
+        if alt > deploy_alt_m:
+            # Freefall phase
+            pressure = air_pressure(alt)
+            temp = 288.15 - 0.0065 * alt
+            R_specific = 287.058
+            rho = pressure / (R_specific * temp)
+            drag = 0.5 * rho * v_vert**2 * CdA * np.sign(v_vert)
+            F_net = mass_kg * g - drag
+            a = F_net / mass_kg
+            v_vert += a * dt
+            alt -= v_vert * dt
+            north += wind_north * dt
+            east += wind_east * dt
+            phase = 0
+        else:
+            # Non-gliding canopy: only wind drift, constant vertical descent
+            v_vert = canopy_v_vert
+            north += wind_north * dt
+            east += wind_east * dt
+            alt -= v_vert * dt
+            phase = 1
+
+        alts.append(alt / 0.3048)
+        norths.append(north)
+        easts.append(east)
+        times.append(t)
+        phases.append(phase)
+        t += dt
+
+    return np.array(alts), np.array(norths), np.array(easts), np.array(times), np.array(phases)
