@@ -1,4 +1,5 @@
 import requests
+from requests.exceptions import RequestException
 import pandas as pd
 from datetime import datetime, timezone
 import numpy as np
@@ -99,12 +100,16 @@ def get_sat_image(latitude, longitude, zoom=13, size=400):
         f"&l=sat"
         f"&size={size},{size}"
     )
-    resp = requests.get(url)
-    if 'image' not in resp.headers.get('Content-Type', ''):
-        print("Yandex did not return an image. Response headers:", resp.headers)
-        print("Response content (truncated):", resp.content[:200])
+    try:
+        resp = requests.get(url, timeout=10)
+        if 'image' not in resp.headers.get('Content-Type', ''):
+            print("Yandex did not return an image. Response headers:", resp.headers)
+            print("Response content (truncated):", resp.content[:200])
+            return None, (None, None, None, None)
+        img = Image.open(BytesIO(resp.content))
+    except RequestException as e:
+        print(f"Could not retrieve satellite image: {e}")
         return None, (None, None, None, None)
-    img = Image.open(BytesIO(resp.content))
 
     meters_per_pixel = 156543.03392 * np.cos(np.radians(latitude)) / (2 ** zoom)
     half_side_m = (size / 2) * meters_per_pixel
