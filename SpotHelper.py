@@ -13,7 +13,7 @@ IPLong = -75.0352181
 
 # Skydiver/Simulation parameters
 EXIT_ALTITUDE_FT = 13000      # Exit altitude (ft)
-DEPLOY_ALTITUDE_FT = 5000     # Canopy deployment altitude (ft)
+DEPLOY_ALTITUDE_FT = 3000     # Canopy deployment altitude (ft)
 MASS_KG = 90                  # Skydiver mass (kg)
 CDA = 0.505                   # Drag area (m^2)
 CANOPY_V_VERT_FPS = 8        # Canopy vertical descent rate (ft/s)

@@ -25,7 +25,7 @@ def get_winds_aloft_table(latitude, longitude):
 
     response = requests.get(url)
     data = response.json()
-    print("Raw Open-Meteo response:", data)
+    #print("Raw Open-Meteo response:", data)
 
     level_to_altitude = {
         "10m": 33,
