@@ -2,6 +2,8 @@
 
 ## Description
 
+A simple python application that uses real-time wind data to plot a skydiver's path over the ground.
+
 ## Prerequisites
 
 1. Ensure that the following are satisfied before running:
