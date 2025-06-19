@@ -91,36 +91,62 @@ circle_north = glide_distance * np.cos(theta)
 circle_east = glide_distance * np.sin(theta)
 circle_lat, circle_lon = meters_to_latlon(circle_north + required_north_offset, circle_east + required_east_offset, IPLat, IPLong)
 
-# Plot trajectory over satellite image, coloring by phase
-if img is not None:
+# Convert trajectory and circle to miles relative to IP
+norths_miles = norths / 1609.34
+easts_miles = easts / 1609.34
+circle_north_miles = circle_north + required_north_offset
+circle_east_miles = circle_east + required_east_offset
+circle_north_miles /= 1609.34
+circle_east_miles /= 1609.34
+exit_north_miles = required_north_offset / 1609.34
+exit_east_miles = required_east_offset / 1609.34
+
+# For satellite image overlay: calculate image bounds in miles relative to IP
+if img is not None and None not in (lat_min, lat_max, lon_min, lon_max):
+    # Calculate north/east offsets (in meters) from IP to image bounds
+    def latlon_to_offset(lat, lon, lat0, lon0):
+        dlat = (lat - lat0) * 111320
+        dlon = (lon - lon0) * (40075000 * np.cos(np.radians(lat0)) / 360)
+        return dlat, dlon
+
+    north_min, east_min = latlon_to_offset(lat_min, lon_min, IPLat, IPLong)
+    north_max, east_max = latlon_to_offset(lat_max, lon_max, IPLat, IPLong)
+    # Convert to miles
+    north_min /= 1609.34
+    north_max /= 1609.34
+    east_min /= 1609.34
+    east_max /= 1609.34
+
     plt.figure(figsize=(8, 8))
-    plt.imshow(img, extent=[lon_min, lon_max, lat_min, lat_max], origin='upper')
+    plt.imshow(img, extent=[east_min, east_max, north_min, north_max], origin='upper')
     freefall_mask = np.array(phases) == 0
     canopy_mask = np.array(phases) == 1
-    plt.plot(np.array(traj_lon)[freefall_mask], np.array(traj_lat)[freefall_mask], color='red', linewidth=2, label='Freefall')
-    plt.plot(np.array(traj_lon)[canopy_mask], np.array(traj_lat)[canopy_mask], color='blue', linewidth=2, label='Canopy')
-    plt.plot(circle_lon, circle_lat, color='green', linestyle='--', label='Canopy Glide Circle')
-    plt.scatter([exit_lon], [exit_lat], color='cyan', marker='o', label='Exit Point')
-    plt.scatter([IPLong], [IPLat], color='yellow', marker='x', label='Dropzone')
-    plt.xlabel('Longitude')
-    plt.ylabel('Latitude')
-    plt.title('Skydiver Trajectory over Yandex Satellite Image (Phase Colored)')
+    plt.plot(easts_miles[freefall_mask], norths_miles[freefall_mask], color='red', linewidth=2, label='Freefall')
+    plt.plot(easts_miles[canopy_mask], norths_miles[canopy_mask], color='blue', linewidth=2, label='Canopy')
+    plt.plot(circle_east_miles, circle_north_miles, color='green', linestyle='--', label='Canopy Glide Circle')
+    plt.scatter([exit_east_miles], [exit_north_miles], color='cyan', marker='o', label='Exit Point')
+    plt.scatter([0], [0], color='yellow', marker='x', label='Dropzone (IP)')
+    plt.xlabel('East Offset (miles)')
+    plt.ylabel('North Offset (miles)')
+    plt.title('Skydiver Trajectory Relative to Dropzone (Miles)')
     plt.legend()
+    plt.grid(True)
     plt.show()
 else:
     print("Satellite image could not be retrieved. Plotting trajectory only.")
     plt.figure(figsize=(8, 8))
     freefall_mask = np.array(phases) == 0
     canopy_mask = np.array(phases) == 1
-    plt.plot(np.array(traj_lon)[freefall_mask], np.array(traj_lat)[freefall_mask], color='red', linewidth=2, label='Freefall')
-    plt.plot(np.array(traj_lon)[canopy_mask], np.array(traj_lat)[canopy_mask], color='blue', linewidth=2, label='Canopy')
-    plt.plot(circle_lon, circle_lat, color='green', linestyle='--', label='Canopy Glide Circle')
-    plt.scatter([exit_lon], [exit_lat], color='cyan', marker='o', label='Exit Point')
-    plt.scatter([IPLong], [IPLat], color='yellow', marker='x', label='Dropzone')
-    plt.xlabel('Longitude')
-    plt.ylabel('Latitude')
-    plt.title('Skydiver Trajectory (No Satellite Image, Phase Colored)')
+    plt.plot(easts_miles[freefall_mask], norths_miles[freefall_mask], color='red', linewidth=2, label='Freefall')
+    plt.plot(easts_miles[canopy_mask], norths_miles[canopy_mask], color='blue', linewidth=2, label='Canopy')
+    plt.plot(circle_east_miles, circle_north_miles, color='green', linestyle='--', label='Canopy Glide Circle')
+    plt.scatter([exit_east_miles], [exit_north_miles], color='cyan', marker='o', label='Exit Point')
+    plt.scatter([0], [0], color='yellow', marker='x', label='Dropzone (IP)')
+    plt.xlabel('East Offset (miles)')
+    plt.ylabel('North Offset (miles)')
+    plt.title('Skydiver Trajectory Relative to Dropzone (Miles)')
     plt.legend()
+    plt.grid(True)
     plt.show()
 
 final_lat, final_lon = traj_lat[-1], traj_lon[-1]
