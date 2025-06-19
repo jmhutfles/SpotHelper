@@ -10,10 +10,19 @@
 
 1. (Optional) Create a python virtual environment:
 
+	1. Linux:
+
 	```
 	python3 -m venv venv
 	source venv/bin/activate
 	```
+
+	1. Windows:
+	
+	```
+	python3 -m venv venv
+	source venv/Scripts/activate
+	```	
 
 
 1. Install python dependencies:
