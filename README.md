@@ -7,19 +7,19 @@ A simple python application that uses real-time wind data to plot a skydiver's p
 ## Prerequisites
 
 1. Ensure that the following are satisfied before running:
-* Python (3.11 or greater) is installed on your machine.
-* GUI displays are enabled on your machine (i.e., X11 forwarding is enabled for remote connections)
+	* Python (3.11 or greater) is installed on your machine.
+	* GUI displays are enabled on your machine (i.e., X11 forwarding is enabled for remote connections)
 
 1. (Optional) Create a python virtual environment:
 
-	1. Linux:
+	a. On Linux:
 
 	```
 	python3 -m venv venv
 	source venv/bin/activate
 	```
 
-	1. Windows:
+	b. On Windows:
 	
 	```
 	python3 -m venv venv
