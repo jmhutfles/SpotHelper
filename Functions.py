@@ -273,3 +273,26 @@ def simulate_freefall_and_canopy(
         t += dt
 
     return np.array(alts), np.array(norths), np.array(easts), np.array(times), np.array(phases)
+
+def prompt_manual_winds():
+    """
+    Prompt the user to manually enter wind data if online retrieval fails.
+    Returns a DataFrame with columns: 'Altitude (ft)', 'Wind Speed (m/s)', 'Wind Direction (deg)'
+    """
+    print("Could not retrieve winds aloft from the internet.")
+    print("Please enter wind data manually for each level (altitude_ft, wind_speed_m/s, wind_direction_deg).")
+    print("Example: 3000,5,270")
+    print("Enter one per line. Type 'done' when finished.")
+    rows = []
+    while True:
+        line = input("Enter (altitude_ft,wind_speed_m/s,wind_direction_deg): ")
+        if line.strip().lower() == 'done':
+            break
+        try:
+            alt, speed, direction = map(float, line.strip().split(','))
+            rows.append({'Altitude (ft)': alt, 'Wind Speed (m/s)': speed, 'Wind Direction (deg)': direction})
+        except Exception:
+            print("Invalid input, please try again.")
+    if not rows:
+        raise RuntimeError("No wind data entered.")
+    return pd.DataFrame(rows)

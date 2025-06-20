@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from Functions import (
     get_winds_aloft_table, get_wind_component_interpolators, get_sat_image,
-    meters_to_latlon, simulate_freefall_and_canopy
+    meters_to_latlon, simulate_freefall_and_canopy, prompt_manual_winds
 )
 
 # -------------------- INITIAL CONDITIONS & CONSTANTS --------------------
@@ -29,9 +29,15 @@ def meters_offset_to_latlon(north_offset, east_offset, lat0, lon0):
     dlon = east_offset / (111320 * np.cos(np.radians(lat0)))
     return lat0 + dlat, lon0 + dlon
 
-# Pull Winds
-RawWinds = get_winds_aloft_table(IPLat, IPLong)
-print(RawWinds)
+# Pull Winds with redundancy
+try:
+    RawWinds = get_winds_aloft_table(IPLat, IPLong)
+    print(RawWinds)
+except Exception as e:
+    print(f"Error retrieving winds aloft: {e}")
+    RawWinds = prompt_manual_winds()
+    print(RawWinds)
+
 north_interp, east_interp = get_wind_component_interpolators(RawWinds)
 
 # First simulation: exit directly over target
