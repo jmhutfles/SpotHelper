@@ -12,6 +12,7 @@ from Functions import (
 DT = 0.1
 SAT_IMG_SIZE = 400
 CIRCLE_RESOLUTION = 200
+SAT_IMG_ZOOM = 13
 # --------------------------------------------------------
 
 # -------------------- DEFAULT SIMULATION PARAMETERS --------------------
@@ -24,7 +25,6 @@ DEFAULTS = {
     "CDA": 0.505,
     "CANOPY_V_VERT_FPS": 8,
     "CANOPY_V_HORIZ_FPS": 24,
-    "SAT_IMG_ZOOM": 13
 }
 # -----------------------------------------------------------------------
 
@@ -44,7 +44,6 @@ def run_simulation(params):
         CDA = float(params["CDA"].get())
         CANOPY_V_VERT_FPS = float(params["CANOPY_V_VERT_FPS"].get())
         CANOPY_V_HORIZ_FPS = float(params["CANOPY_V_HORIZ_FPS"].get())
-        SAT_IMG_ZOOM = int(params["SAT_IMG_ZOOM"].get())
     except Exception as e:
         messagebox.showerror("Input Error", f"Invalid input: {e}")
         return
@@ -192,6 +191,25 @@ def run_simulation(params):
         plt.legend()
         plt.grid(True)
         plt.show()
+
+    # --- Side View Plot: Offset from DZ vs Altitude with phase colors ---
+    horizontal_offset_m = np.sqrt(norths**2 + easts**2)
+    horizontal_offset_miles = horizontal_offset_m / 1609.34
+    alts_ft = alts  # Already in feet
+
+    freefall_mask = np.array(phases) == 0
+    canopy_mask = np.array(phases) == 1
+
+    plt.figure(figsize=(10, 5))
+    plt.plot(horizontal_offset_miles[freefall_mask], alts_ft[freefall_mask], color='red', linewidth=2, label='Freefall')
+    plt.plot(horizontal_offset_miles[canopy_mask], alts_ft[canopy_mask], color='blue', linewidth=2, label='Canopy')
+    plt.xlabel('Horizontal Offset from DZ (miles)')
+    plt.ylabel('Altitude (ft)')
+    plt.title('Side View: Altitude vs. Offset from Dropzone')
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
 
     final_lat, final_lon = traj_lat[-1], traj_lon[-1]
     #messagebox.showinfo("Simulation Complete", f"Exit at: {exit_lat}, {exit_lon}\nLanding at: {final_lat}, {final_lon}")
