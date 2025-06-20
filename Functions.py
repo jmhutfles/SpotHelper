@@ -296,3 +296,54 @@ def prompt_manual_winds():
     if not rows:
         raise RuntimeError("No wind data entered.")
     return pd.DataFrame(rows)
+
+def get_highres_sat_image(center_lat, center_lon, zoom=17, size=400, width_m=2000, height_m=2000):
+    """
+    Downloads a grid of satellite images centered at (center_lat, center_lon) and stitches them together.
+    width_m, height_m: area to cover in meters (east-west, north-south)
+    Returns a PIL Image and the bounding box (lat_min, lat_max, lon_min, lon_max).
+    """
+    meters_per_pixel = 156543.03392 * np.cos(np.radians(center_lat)) / (2 ** zoom)
+    img_width_m = size * meters_per_pixel
+    img_height_m = size * meters_per_pixel
+
+    tiles_x = int(np.ceil(width_m / img_width_m))
+    tiles_y = int(np.ceil(height_m / img_height_m))
+    if tiles_x % 2 == 0: tiles_x += 1
+    if tiles_y % 2 == 0: tiles_y += 1
+
+    half_x = tiles_x // 2
+    half_y = tiles_y // 2
+
+    images = []
+    for dy in range(-half_y, half_y + 1):
+        row = []
+        for dx in range(-half_x, half_x + 1):
+            north_offset = dy * img_height_m
+            east_offset = dx * img_width_m
+            dlat = north_offset / 111320
+            dlon = east_offset / (111320 * np.cos(np.radians(center_lat)))
+            tile_lat = center_lat + dlat
+            tile_lon = center_lon + dlon
+            img, _ = get_sat_image(tile_lat, tile_lon, zoom=zoom, size=size)
+            if img is None:
+                img = Image.new("RGB", (size, size), (0, 0, 0))
+            row.append(img)
+        images.append(row)
+
+    big_img = Image.new("RGB", (size * tiles_x, size * tiles_y))
+    for y, row in enumerate(images):
+        for x, img in enumerate(row):
+            big_img.paste(img, (x * size, y * size))
+
+    # Calculate bounding box (corrected)
+    total_width_m = tiles_x * img_width_m
+    total_height_m = tiles_y * img_height_m
+    half_height_deg = (total_height_m / 2) / 111320
+    half_width_deg = (total_width_m / 2) / (111320 * np.cos(np.radians(center_lat)))
+    lat_min = center_lat - half_height_deg
+    lat_max = center_lat + half_height_deg
+    lon_min = center_lon - half_width_deg
+    lon_max = center_lon + half_width_deg
+
+    return big_img, (lat_min, lat_max, lon_min, lon_max)

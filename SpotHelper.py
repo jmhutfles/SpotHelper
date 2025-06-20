@@ -92,9 +92,6 @@ def run_simulation(params):
         east0=required_east_offset
     )
 
-    # Get satellite image and bounding box
-    img, (lat_min, lat_max, lon_min, lon_max) = get_sat_image(IPLat, IPLong, zoom=SAT_IMG_ZOOM, size=SAT_IMG_SIZE)
-
     # Convert trajectory to lat/lon
     traj_lat, traj_lon = meters_to_latlon(norths, easts, IPLat, IPLong)
 
@@ -114,6 +111,34 @@ def run_simulation(params):
     circle_east = glide_distance * np.sin(theta)
     circle_lat, circle_lon = meters_to_latlon(circle_north + required_north_offset, circle_east + required_east_offset, IPLat, IPLong)
 
+    # --- Calculate bounding box for all points ---
+    all_lats = np.concatenate([traj_lat, circle_lat])
+    all_lons = np.concatenate([traj_lon, circle_lon])
+    lat_min, lat_max = np.min(all_lats), np.max(all_lats)
+    lon_min, lon_max = np.min(all_lons), np.max(all_lons)
+    center_lat = (lat_min + lat_max) / 2
+    center_lon = (lon_min + lon_max) / 2
+
+    # Helper for haversine distance
+    def haversine_distance(lat1, lon1, lat2, lon2):
+        R = 6371000
+        phi1, phi2 = np.radians(lat1), np.radians(lat2)
+        dphi = phi2 - phi1
+        dlambda = np.radians(lon2 - lon1)
+        a = np.sin(dphi/2)**2 + np.cos(phi1)*np.cos(phi2)*np.sin(dlambda/2)**2
+        return 2*R*np.arcsin(np.sqrt(a))
+
+    width_m = haversine_distance(center_lat, lon_min, center_lat, lon_max)
+    height_m = haversine_distance(lat_min, center_lon, lat_max, center_lon)
+    width_m *= 1.2   # Add margin
+    height_m *= 1.2  # Add margin
+
+    # --- Get high-res satellite image ---
+    from Functions import get_highres_sat_image
+    img, (lat_min_img, lat_max_img, lon_min_img, lon_max_img) = get_highres_sat_image(
+        center_lat, center_lon, zoom=SAT_IMG_ZOOM, size=SAT_IMG_SIZE, width_m=width_m, height_m=height_m
+    )
+
     # Convert trajectory and circle to miles relative to IP
     norths_miles = norths / 1609.34
     easts_miles = easts / 1609.34
@@ -123,14 +148,14 @@ def run_simulation(params):
     exit_east_miles = required_east_offset / 1609.34
 
     # For satellite image overlay: calculate image bounds in miles relative to IP
-    if img is not None and None not in (lat_min, lat_max, lon_min, lon_max):
+    if img is not None and None not in (lat_min_img, lat_max_img, lon_min_img, lon_max_img):
         def latlon_to_offset(lat, lon, lat0, lon0):
             dlat = (lat - lat0) * 111320
             dlon = (lon - lon0) * (40075000 * np.cos(np.radians(lat0)) / 360)
             return dlat, dlon
 
-        north_min, east_min = latlon_to_offset(lat_min, lon_min, IPLat, IPLong)
-        north_max, east_max = latlon_to_offset(lat_max, lon_max, IPLat, IPLong)
+        north_min, east_min = latlon_to_offset(lat_min_img, lon_min_img, IPLat, IPLong)
+        north_max, east_max = latlon_to_offset(lat_max_img, lon_max_img, IPLat, IPLong)
         north_min /= 1609.34
         north_max /= 1609.34
         east_min /= 1609.34
@@ -169,7 +194,7 @@ def run_simulation(params):
         plt.show()
 
     final_lat, final_lon = traj_lat[-1], traj_lon[-1]
-    messagebox.showinfo("Simulation Complete", f"Exit at: {exit_lat}, {exit_lon}\nLanding at: {final_lat}, {final_lon}")
+    #messagebox.showinfo("Simulation Complete", f"Exit at: {exit_lat}, {exit_lon}\nLanding at: {final_lat}, {final_lon}")
 
 def main():
     root = tk.Tk()
