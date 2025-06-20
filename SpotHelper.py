@@ -3,10 +3,12 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import tkinter as tk
 from tkinter import messagebox
+from tkinter import ttk
 from Functions import (
     get_winds_aloft_table, get_wind_component_interpolators, get_sat_image,
     meters_to_latlon, simulate_freefall_and_canopy, prompt_manual_winds
 )
+import os
 
 # -------------------- HARD CONSTANTS --------------------
 DT = 0.1
@@ -214,19 +216,63 @@ def run_simulation(params):
     final_lat, final_lon = traj_lat[-1], traj_lon[-1]
     #messagebox.showinfo("Simulation Complete", f"Exit at: {exit_lat}, {exit_lon}\nLanding at: {final_lat}, {final_lon}")
 
+def load_canopy_data(csv_path):
+    df = pd.read_csv(csv_path)
+    return df
+
 def main():
     root = tk.Tk()
     root.title("SpotHelper Simulation Parameters")
 
+    # Load canopy data
+    canopy_csv = os.path.join(os.path.dirname(__file__), "CanopyData.csv")
+    canopy_df = load_canopy_data(canopy_csv)
+    canopy_types = canopy_df["Category"].tolist()
+
     params = {}
     row = 0
     for key, val in DEFAULTS.items():
+        if key in ["CANOPY_V_VERT_FPS", "CANOPY_V_HORIZ_FPS"]:
+            continue  # We'll fill these from the dropdown
         tk.Label(root, text=key).grid(row=row, column=0, sticky="e")
         entry = tk.Entry(root)
         entry.insert(0, str(val))
         entry.grid(row=row, column=1)
         params[key] = entry
         row += 1
+
+    # Add dropdown for canopy type
+    tk.Label(root, text="Canopy Type").grid(row=row, column=0, sticky="e")
+    canopy_var = tk.StringVar(value=canopy_types[0])
+    canopy_menu = ttk.Combobox(root, textvariable=canopy_var, values=canopy_types, state="readonly")
+    canopy_menu.grid(row=row, column=1)
+    row += 1
+
+    # Add entries for speeds (auto-filled)
+    tk.Label(root, text="CANOPY_V_VERT_FPS").grid(row=row, column=0, sticky="e")
+    vert_entry = tk.Entry(root)
+    vert_entry.grid(row=row, column=1)
+    params["CANOPY_V_VERT_FPS"] = vert_entry
+    row += 1
+
+    tk.Label(root, text="CANOPY_V_HORIZ_FPS").grid(row=row, column=0, sticky="e")
+    horiz_entry = tk.Entry(root)
+    horiz_entry.grid(row=row, column=1)
+    params["CANOPY_V_HORIZ_FPS"] = horiz_entry
+    row += 1
+
+    # Function to update speeds when canopy type changes
+    def update_canopy_speeds(*args):
+        selected = canopy_var.get()
+        row = canopy_df[canopy_df["Category"] == selected].iloc[0]
+        # Convert mph to fps: 1 mph = 1.46667 fps
+        vert_entry.delete(0, tk.END)
+        vert_entry.insert(0, str(round(float(row["Vspeed (mph)"]) * 1.46667, 2)))
+        horiz_entry.delete(0, tk.END)
+        horiz_entry.insert(0, str(round(float(row["Hspeed (mph)"]) * 1.46667, 2)))
+
+    canopy_var.trace_add("write", update_canopy_speeds)
+    update_canopy_speeds()  # Set initial values
 
     run_btn = tk.Button(root, text="Run Simulation", command=lambda: run_simulation(params))
     run_btn.grid(row=row, column=0, columnspan=2, pady=10)
